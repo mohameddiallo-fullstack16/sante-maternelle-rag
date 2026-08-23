@@ -16,10 +16,16 @@ from historique import (
 
 collection = obtenir_collection(reinitialiser=False)
 
-SUJETS_COUVERTS = [
-    "Grossesse", "Nouveau-né", "Vaccination", "Nutrition",
-    "Paludisme", "Hygiène", "Allaitement",
-]
+# Un thème -> une vraie question d'exemple (reprises des exemples du cahier des charges)
+SUJETS_EXEMPLES = {
+    "Grossesse": "Quels sont les signes de danger pendant la grossesse ?",
+    "Nouveau-né": "Comment prendre soin d'un nouveau-né les premiers jours ?",
+    "Vaccination": "Pourquoi faut-il respecter le calendrier vaccinal ?",
+    "Nutrition": "Quels sont les conseils de nutrition pour un jeune enfant ?",
+    "Paludisme": "Comment prévenir le paludisme chez les enfants ?",
+    "Hygiène": "Quelles sont les règles d'hygiène de base pour un nouveau-né ?",
+    "Allaitement": "Quels sont les conseils de base pour l'allaitement maternel ?",
+}
 
 
 def soumettre_message(message, history, conv_id):
@@ -61,6 +67,13 @@ def nouvelle_conversation():
     return [], "", "", None, gr.update(value=None)
 
 
+js_forcer_mode_clair = """
+function() {
+    document.body.classList.remove('dark');
+    document.documentElement.classList.remove('dark');
+}
+"""
+
 theme_sante = gr.themes.Base(
     primary_hue="teal",
     secondary_hue="orange",
@@ -98,13 +111,8 @@ theme_sante = gr.themes.Base(
 css = """
 @import url('https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
 
-.gradio-container {
-    max-width: 1400px !important;
-    background: #FAF7F2 !important;
-}
-.dark .gradio-container {
-    background: #FAF7F2 !important;
-}
+.gradio-container { max-width: 1400px !important; background: #FAF7F2 !important; }
+.dark .gradio-container { background: #FAF7F2 !important; }
 footer { display: none !important; }
 
 #sidebar {
@@ -121,26 +129,27 @@ footer { display: none !important; }
     color: #0F7A6C !important;
     margin-bottom: 2px !important;
 }
-#sous-titre {
-    color: #6B6459;
-    font-size: 14.5px;
-    margin-bottom: 14px;
-}
+#sous-titre { color: #6B6459; font-size: 14.5px; margin-bottom: 14px; }
 
-.badges-sujets {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 16px;
+/* ---- Badges de sujets, devenus des boutons cliquables ---- */
+#rangee-badges { flex-wrap: wrap !important; gap: 8px !important; margin-bottom: 14px !important; }
+.chip-sujet {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    background: #E7F3F0 !important;
+    color: #0F7A6C !important;
+    border: 1px solid #C7E4DD !important;
+    border-radius: 999px !important;
+    padding: 6px 16px !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    box-shadow: none !important;
 }
-.badge-sujet {
-    background: #E7F3F0;
-    color: #0F7A6C;
-    border: 1px solid #C7E4DD;
-    border-radius: 999px;
-    padding: 5px 13px;
-    font-size: 12.5px;
-    font-weight: 600;
+.chip-sujet:hover {
+    background: #0F7A6C !important;
+    color: #FFFFFF !important;
+    border-color: #0F7A6C !important;
 }
 
 .bandeau-avertissement {
@@ -171,18 +180,12 @@ footer { display: none !important; }
     overflow: visible !important;
 }
 
-#chatbot-principal {
-    border-radius: 14px !important;
-    border: 1px solid #E4DDD1 !important;
-    background: #FFFFFF !important;
-}
+#chatbot-principal { border-radius: 14px !important; border: 1px solid #E4DDD1 !important; background: #FFFFFF !important; }
 
 button { border-radius: 10px !important; font-weight: 600 !important; }
 textarea { border-radius: 10px !important; }
 
-#panneau-historique input[type="radio"] {
-    display: none !important;
-}
+#panneau-historique input[type="radio"] { display: none !important; }
 #panneau-historique label {
     display: block !important;
     border-radius: 10px !important;
@@ -194,23 +197,11 @@ textarea { border-radius: 10px !important; }
     font-size: 13.5px !important;
     color: #4A3B2A !important;
 }
-#panneau-historique label:hover {
-    background: #E9E2D4 !important;
-}
+#panneau-historique label:hover { background: #E9E2D4 !important; }
 
-#zone-sources textarea {
-    font-family: 'Inter', sans-serif !important;
-    font-size: 13.5px !important;
-    line-height: 1.6 !important;
-}
+#zone-sources textarea { font-family: 'Inter', sans-serif !important; font-size: 13.5px !important; line-height: 1.6 !important; }
+"""
 
-"""
-js_forcer_mode_clair = """
-function() {
-    document.body.classList.remove('dark');
-    document.documentElement.classList.remove('dark');
-}
-"""
 with gr.Blocks(title="Assistant Santé Maternelle et Infantile", theme=theme_sante, css=css, analytics_enabled=False) as demo:
 
     conv_id_state = gr.State(value=None)
@@ -231,11 +222,11 @@ with gr.Blocks(title="Assistant Santé Maternelle et Infantile", theme=theme_san
                     '(OMS, UNICEF, Ministère de la Santé du Sénégal)</div>'
                 )
 
-            gr.HTML(
-                '<div class="badges-sujets">' +
-                "".join(f'<span class="badge-sujet">{s}</span>' for s in SUJETS_COUVERTS) +
-                '</div>'
-            )
+            with gr.Row(elem_id="rangee-badges"):
+                boutons_sujets = []
+                for theme in SUJETS_EXEMPLES:
+                    btn = gr.Button(theme, elem_classes=["chip-sujet"])
+                    boutons_sujets.append(btn)
 
             gr.HTML(f'<div class="bandeau-avertissement">⚠️ {AVERTISSEMENT.replace("⚠️ ", "")}</div>')
 
@@ -273,6 +264,18 @@ with gr.Blocks(title="Assistant Santé Maternelle et Infantile", theme=theme_san
     ).then(
         rafraichir_historique, outputs=[liste_historique]
     )
+
+    # Un clic sur un badge = remplit le champ avec la question d'exemple, puis lance la même chaîne qu'Envoyer
+    for theme, question in SUJETS_EXEMPLES.items():
+        boutons_sujets[list(SUJETS_EXEMPLES.keys()).index(theme)].click(
+            fn=lambda q=question: q, outputs=[msg_input]
+        ).then(
+            soumettre_message, [msg_input, chatbot, conv_id_state], [msg_input, chatbot, conv_id_state]
+        ).then(
+            repondre_et_sauvegarder, [chatbot, conv_id_state], [chatbot, sources, alerte_banniere, conv_id_state]
+        ).then(
+            rafraichir_historique, outputs=[liste_historique]
+        )
 
     nouvelle_btn.click(
         nouvelle_conversation, outputs=[chatbot, sources, alerte_banniere, conv_id_state, liste_historique]
