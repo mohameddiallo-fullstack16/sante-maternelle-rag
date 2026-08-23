@@ -1,0 +1,11 @@
+empreintes_vues = set()
+
+textes = ["Bonjour le monde", "Bonjour le monde", "Autre texte"]
+
+for texte in textes:
+    empreinte = texte  # on simplifie, pas besoin de hashlib pour ce test
+    if empreinte in empreintes_vues:
+        print(f"DOUBLON détecté, on saute : {texte!r}")
+        continue
+    empreintes_vues.add(empreinte)
+    print(f"Nouveau, on garde : {texte!r}")
